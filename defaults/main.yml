@@ -1,0 +1,27 @@
+---
+# defaults file for hybris-deploy-artifacts
+
+htools:
+  hybris_tools_path: "/opt/hybris-tools"
+
+hda_hup_extra_opts: ""
+hda_hybris_http_host: "localhost"
+hda_hybris_https_port: "9002"
+hda_hybris_check_url: "login.jsp"
+hda_hybris_service_name: hybrisd
+
+hda_artifacts_deploy_version: "dev/1"
+
+# in minutes
+hda_hybris_artifacts_timeout: 60
+# in seconds
+hda_hybris_artifacts_delay: 30
+
+hda_hybris_start: False
+# in minutes
+hda_hybris_service_timeout: 30
+# in seconds
+hda_hybris_service_delay: 30
+
+hda_debug_mode: False
+hda_debug_directory: /tmp

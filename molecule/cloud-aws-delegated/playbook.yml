@@ -1,0 +1,28 @@
+---
+- name: Converge
+  hosts: all
+  roles:
+    - role: lean_delivery.java
+    - role: geerlingguy.mysql
+      become: True
+      mysql_innodb_flush_log_at_trx_commit: "0"
+      mysql_databases:
+        - name: "hybris"
+          collation: "utf8_general_ci"
+          encoding: "utf8"
+      mysql_users:
+        - name: "hybris"
+          host: "localhost"
+          password: "h6b9r5"
+          priv: "*.*:ALL"
+    - role: lean_delivery.hybris_bootstrap_node
+      htools_artifact_storage: "{{ lookup('env','STORAGE_AWS') }}/hybrisArtifacts"
+      htools_upload_dir: "/opt"
+      htools_legacy_structure: True
+      htools_purge_hybris_home: True
+      htools_initialization_log_check: False
+      hybrisd_service_timeout: 1800
+    - role: hybris-deploy-artifacts
+      hda_artifacts_deploy_version: "hy67-b2c-molecule-test/hybrisServer"
+      hda_hup_extra_opts: "--initialize"
+      hda_hybris_start: True
