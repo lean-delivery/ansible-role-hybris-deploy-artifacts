@@ -23,7 +23,7 @@
       htools_purge_hybris_home: True
       htools_initialization_log_check: False
       hybrisd_service_timeout: 1800
-    - role: hybris-deploy-artifacts
+    - role: ansible-role-hybris-deploy-artifacts
       hda_artifacts_deploy_version: "hy67-b2c-molecule-test/hybrisServer"
       hda_hup_extra_opts: "--initialize"
       hda_hybris_start: True
