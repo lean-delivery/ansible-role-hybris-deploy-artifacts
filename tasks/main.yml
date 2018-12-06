@@ -1,0 +1,97 @@
+---
+# tasks file for hybris-deploy-artifacts
+- name: "Force all notified handlers to run"
+  meta: flush_handlers
+
+- name: "Make sure h-up may launch successfully"
+  command: "{{ htools.hybris_tools_path }}/h-up --help"
+  args:
+    removes: "{{ htools.hybris_tools_path }}/h-up"
+  register: command_hu_result
+  failed_when: command_hu_result.rc != 0
+  become: True
+
+- name: "Stop Hybris service"
+  systemd:
+    state: stopped
+    name: "{{ hda_hybris_service_name }}"
+  become: True
+
+- name: "Perform Hybris deploy and additional actions"
+  command: >
+    {{ htools.hybris_tools_path }}/h-up --deploy-release \
+    {{ hda_artifacts_deploy_version }} {{ hda_hup_extra_opts }}
+  args:
+    removes: "{{ htools.hybris_tools_path }}/h-up"
+  async: "{{ (hda_hybris_artifacts_timeout * 60)|int }}"
+  poll: 0
+  register: hup_deploy
+  become: True
+  become_flags: '-i'
+  become_method: sudo
+
+- name: "Wait for artifacts are initialized"
+  async_status:
+    jid: "{{ hup_deploy.ansible_job_id }}"
+  register: hup_result
+  until: hup_result.finished
+  retries: "{{ (hda_hybris_artifacts_timeout * 60 / hda_hybris_artifacts_delay)|round|int }}"
+  delay: "{{ hda_hybris_artifacts_delay }}"
+  become: True
+
+- name: "Save debug to file"
+  copy:
+    content: "{{ hup_result }}"
+    dest: "{{ hda_debug_directory }}/{{ ansible_date_time.date }}-{{ ansible_hostname }}.log"
+  delegate_to: localhost
+  when: hda_debug_mode
+  become: True
+
+- name: "Set fact deploy status"
+  set_fact:
+    hda_artifacts_deploy_success: True
+  when:
+    - hup_result.rc == 0
+    - '"BUILD SUCCESSFUL" in hup_result.stdout'
+
+- name: "Debug"
+  debug:
+    var: hup_result.stdout
+  when: not hda_artifacts_deploy_success
+
+- name: "Check that artifacts deployment failed (Skip if all good)"
+  fail:
+    msg: "Unfortunately artifacts were not successfully deployed. Please check log!"
+  when: not hda_artifacts_deploy_success
+
+- name: "Start Hybris service, also issue daemon-reload to pick up config changes"
+  systemd:
+    state: started
+    enabled: True
+    daemon_reload: True
+    name: "{{ hda_hybris_service_name }}"
+  when:
+    - hda_artifacts_deploy_success
+    - hda_hybris_start
+  become: True
+
+- name: "Wait for Hybris is UP"
+  uri:
+    url: "https://{{ hda_hybris_http_host }}:{{ hda_hybris_https_port }}/{{ hda_hybris_check_url }}"
+    status_code: 200
+    validate_certs: False
+  register: hybris_login_page
+  until: hybris_login_page.status == 200
+  retries: "{{ (hda_hybris_service_timeout * 60 / hda_hybris_service_delay)|round|int }}"
+  delay: "{{ hda_hybris_service_delay }}"
+  when:
+    - hda_artifacts_deploy_success
+    - hda_hybris_start
+
+- name: "Display hybris admin portal url"
+  debug:
+    msg: |
+      "Please use this url to access admin portal:
+      https://{{ ansible_fqdn|default(ansible_hostname) }}:{{ hda_hybris_https_port }}/\
+      {{ hda_hybris_check_url }}"
+  when: hda_hybris_start
